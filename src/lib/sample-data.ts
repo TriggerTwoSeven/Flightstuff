@@ -59,5 +59,5 @@ export function generateSampleWorkbook() {
   XLSX.utils.book_append_sheet(wb, bookingsSheet, 'Bookings');
   XLSX.utils.book_append_sheet(wb, itemsSheet, 'Items');
 
-  XLSX.writeFile(wb, 'Preflight_Desk_Sample_Data.xlsx');
+  XLSX.writeFile(wb, 'ReadyRoute_Sample_Data.xlsx');
 }

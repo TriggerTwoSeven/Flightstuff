@@ -250,11 +250,6 @@ function DashboardPreview() {
 }
 
 export function HomeScreen({ onStartConversation, onStartUpload }: Props) {
-  const handleDownloadSample = async () => {
-    const { generateSampleWorkbook } = await import('@/lib/sample-data');
-    generateSampleWorkbook();
-  };
-
   return (
     <div className="home-immersive">
       {/* Full-bleed hero section */}
@@ -268,14 +263,6 @@ export function HomeScreen({ onStartConversation, onStartUpload }: Props) {
         </div>
 
         <div className="hero-content">
-          {/* Badge */}
-          <div className="hero-badge animate-fade-in-scale">
-            <span className="hero-badge-dot" />
-            <span>Powered by Gemini AI</span>
-            <span className="hero-badge-separator" />
-            <span>10 Rules Active</span>
-          </div>
-
           {/* Title */}
           <h1 className="hero-title animate-fade-in delay-100">
             Validate, check, and
@@ -327,30 +314,6 @@ export function HomeScreen({ onStartConversation, onStartUpload }: Props) {
 
       {/* Below hero content */}
       <div className="max-w-5xl mx-auto" style={{ padding: '0 16px' }}>
-        {/* Quick actions */}
-        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-10 mt-10 animate-fade-in delay-400">
-          <button
-            onClick={() => {
-              onStartConversation();
-            }}
-            className="btn btn-secondary text-sm"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
-            Try sample conversation
-          </button>
-          <button
-            onClick={handleDownloadSample}
-            className="btn btn-secondary text-sm"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
-            </svg>
-            Download sample workbook
-          </button>
-        </div>
-
         {/* Rules overview */}
         <div className="card p-6 mb-8 animate-fade-in delay-400">
           <h3 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--fg-muted)' }}>
@@ -419,7 +382,7 @@ export function HomeScreen({ onStartConversation, onStartUpload }: Props) {
         {/* Footer */}
         <div className="text-center mt-8 mb-4 animate-fade-in delay-500">
           <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
-            Preflight Desk &middot; Powered by Gemini AI &middot; Neon PostgreSQL
+            ReadyRoute &middot; Powered by Gemini AI &middot; Neon PostgreSQL
           </p>
         </div>
       </div>
