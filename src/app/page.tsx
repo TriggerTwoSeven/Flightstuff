@@ -40,7 +40,7 @@ export default function Home() {
     setView(newView);
   }, []);
 
-  const showTabs = view !== 'booking-detail';
+  const showTabs = view !== 'booking-detail' && view !== 'home';
 
   return (
     <>
