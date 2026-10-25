@@ -40,15 +40,15 @@ export interface CarrierService {
 }
 
 export const RATE_CARD: CarrierService[] = [
-  { carrier: 'Carrier A', service: 'Road economy', destinationCountry: 'Germany', pricePerPallet: 180, transitDays: 5, onTimePercent: 92, maxKgPerPallet: 500 },
-  { carrier: 'Carrier B', service: 'Road standard', destinationCountry: 'Germany', pricePerPallet: 220, transitDays: 3, onTimePercent: 95, maxKgPerPallet: 750 },
-  { carrier: 'Carrier C', service: 'Road express', destinationCountry: 'Germany', pricePerPallet: 340, transitDays: 2, onTimePercent: 98, maxKgPerPallet: 400 },
-  { carrier: 'Carrier A', service: 'Road economy', destinationCountry: 'France', pricePerPallet: 170, transitDays: 5, onTimePercent: 92, maxKgPerPallet: 500 },
-  { carrier: 'Carrier B', service: 'Road standard', destinationCountry: 'France', pricePerPallet: 210, transitDays: 3, onTimePercent: 95, maxKgPerPallet: 750 },
-  { carrier: 'Carrier C', service: 'Road express', destinationCountry: 'France', pricePerPallet: 330, transitDays: 2, onTimePercent: 98, maxKgPerPallet: 400 },
-  { carrier: 'Carrier A', service: 'Road economy', destinationCountry: 'Netherlands', pricePerPallet: 160, transitDays: 5, onTimePercent: 92, maxKgPerPallet: 500 },
-  { carrier: 'Carrier B', service: 'Road standard', destinationCountry: 'Netherlands', pricePerPallet: 200, transitDays: 3, onTimePercent: 95, maxKgPerPallet: 750 },
-  { carrier: 'Carrier C', service: 'Road express', destinationCountry: 'Netherlands', pricePerPallet: 320, transitDays: 2, onTimePercent: 98, maxKgPerPallet: 400 },
+  { carrier: 'TransAsia Road', service: 'Road economy', destinationCountry: 'Germany', pricePerPallet: 180, transitDays: 5, onTimePercent: 87.8, maxKgPerPallet: 500 },
+  { carrier: 'CargoLink Prime', service: 'Road standard', destinationCountry: 'Germany', pricePerPallet: 220, transitDays: 3, onTimePercent: 93.1, maxKgPerPallet: 750 },
+  { carrier: 'SwiftAir Express', service: 'Road express', destinationCountry: 'Germany', pricePerPallet: 340, transitDays: 2, onTimePercent: 96.5, maxKgPerPallet: 400 },
+  { carrier: 'TransAsia Road', service: 'Road economy', destinationCountry: 'France', pricePerPallet: 170, transitDays: 5, onTimePercent: 87.8, maxKgPerPallet: 500 },
+  { carrier: 'CargoLink Prime', service: 'Road standard', destinationCountry: 'France', pricePerPallet: 210, transitDays: 3, onTimePercent: 93.1, maxKgPerPallet: 750 },
+  { carrier: 'SwiftAir Express', service: 'Road express', destinationCountry: 'France', pricePerPallet: 330, transitDays: 2, onTimePercent: 96.5, maxKgPerPallet: 400 },
+  { carrier: 'TransAsia Road', service: 'Road economy', destinationCountry: 'Netherlands', pricePerPallet: 160, transitDays: 5, onTimePercent: 87.8, maxKgPerPallet: 500 },
+  { carrier: 'CargoLink Prime', service: 'Road standard', destinationCountry: 'Netherlands', pricePerPallet: 200, transitDays: 3, onTimePercent: 93.1, maxKgPerPallet: 750 },
+  { carrier: 'SwiftAir Express', service: 'Road express', destinationCountry: 'Netherlands', pricePerPallet: 320, transitDays: 2, onTimePercent: 96.5, maxKgPerPallet: 400 },
 ];
 
 export const PROHIBITED_TERMS_TIER1 = [
