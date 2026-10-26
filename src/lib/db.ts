@@ -1,4 +1,9 @@
 import { neon } from '@neondatabase/serverless';
+import type { BookingReport } from './schemas';
+
+export function isDatabaseConfigured(): boolean {
+  return Boolean(process.env.DATABASE_URL);
+}
 
 function getDb() {
   const url = process.env.DATABASE_URL;
@@ -6,15 +11,15 @@ function getDb() {
   return neon(url);
 }
 
-export async function saveBookingReport(report: {
-  booking: Record<string, unknown>;
-  items: Record<string, unknown>[];
-  findings: Record<string, unknown>[];
-  status: string;
-  carrier?: Record<string, unknown> | null;
-}) {
+/** Save or update one booking report. Table layout is in schema.sql. */
+export async function saveBookingReport(report: BookingReport) {
   const sql = getDb();
-  const b = report.booking as Record<string, unknown>;
+  const b = report.booking;
+  const summary = JSON.stringify(
+    report.findings.filter(f => f.status !== 'pass').map(f => ({
+      ruleId: f.ruleId, ruleName: f.ruleName, severity: f.severity, status: f.status, evidence: f.evidence,
+    })),
+  );
 
   await sql`
     INSERT INTO bookings (
@@ -22,41 +27,48 @@ export async function saveBookingReport(report: {
       destination_city, destination_country, destination_type,
       ready_to_ship_date, seller_priority, pallets, cartons,
       total_declared_value, currency, total_gross_weight,
-      incoterm, insurance, special_instructions, status,
-      findings_summary, carrier_recommendation
+      status, findings_summary, carrier_recommendation
     ) VALUES (
-      ${b.bookingId as string}, ${b.sellerName as string}, ${b.originCity as string}, ${b.originCountry as string},
-      ${b.destinationCity as string}, ${b.destinationCountry as string}, ${b.destinationType as string},
-      ${b.readyToShipDate as string}, ${b.sellerPriority as string}, ${b.pallets as number}, ${b.cartons as number},
-      ${b.totalDeclaredValue as number}, ${b.currency as string}, ${b.totalGrossWeight as number},
-      ${b.incoterm as string}, ${b.insurance as string}, ${b.specialInstructions as string}, ${report.status},
-      ${JSON.stringify(report.findings)}, ${JSON.stringify(report.carrier ?? null)}
+      ${b.bookingId}, ${b.sellerName}, ${b.originCity}, ${b.originCountry},
+      ${b.destinationCity}, ${b.destinationCountry}, ${b.destinationType},
+      ${b.readyToShipDate}, ${b.sellerPriority}, ${b.pallets}, ${b.cartons},
+      ${b.totalDeclaredValue}, ${b.currency}, ${b.totalGrossWeight},
+      ${report.status}, ${summary}::jsonb, ${JSON.stringify(report.recommendation?.recommended ?? null)}::jsonb
     )
     ON CONFLICT (booking_id) DO UPDATE SET
+      seller_name = EXCLUDED.seller_name,
+      destination_city = EXCLUDED.destination_city,
+      destination_country = EXCLUDED.destination_country,
+      pallets = EXCLUDED.pallets,
+      cartons = EXCLUDED.cartons,
+      total_declared_value = EXCLUDED.total_declared_value,
+      total_gross_weight = EXCLUDED.total_gross_weight,
       status = EXCLUDED.status,
       findings_summary = EXCLUDED.findings_summary,
       carrier_recommendation = EXCLUDED.carrier_recommendation
   `;
 
+  await sql`DELETE FROM items WHERE booking_id = ${b.bookingId}`;
+  await sql`DELETE FROM findings WHERE booking_id = ${b.bookingId}`;
+
   for (const item of report.items) {
     await sql`
       INSERT INTO items (booking_id, sku, description, quantity, unit_price, hs_code, country_of_origin, weight_per_unit, cartons, per_carton)
-      VALUES (${b.bookingId as string}, ${item.sku as string}, ${item.description as string}, ${item.quantity as number}, ${item.unitPrice as number}, ${item.hsCode as string}, ${item.countryOfOrigin as string}, ${item.weightPerUnit as number}, ${item.cartons as number}, ${item.perCarton as number})
-      ON CONFLICT DO NOTHING
+      VALUES (${b.bookingId}, ${item.sku}, ${item.description}, ${item.quantity}, ${item.unitPrice}, ${item.hsCode}, ${item.countryOfOrigin}, ${item.unitWeight}, ${item.cartons}, ${item.unitsPerCarton})
     `;
   }
 
   for (const f of report.findings) {
     await sql`
       INSERT INTO findings (booking_id, rule_id, rule_label, severity, status, message, affected_field, affected_sku)
-      VALUES (${b.bookingId as string}, ${f.ruleId as string}, ${f.ruleLabel as string}, ${f.severity as string}, ${f.status as string}, ${f.message as string}, ${f.affectedField as string}, ${f.affectedSku as string})
+      VALUES (${b.bookingId}, ${f.ruleId}, ${f.ruleName}, ${f.severity}, ${f.status}, ${f.evidence}, ${f.actual ?? null}, ${f.affectedItem?.sku ?? null})
     `;
   }
 }
 
 export async function getBookingHistory() {
   const sql = getDb();
-  const rows = await sql`
+  return sql`
     SELECT booking_id, seller_name, destination_country, status, pallets,
            total_declared_value, currency, created_at,
            findings_summary, carrier_recommendation
@@ -64,14 +76,4 @@ export async function getBookingHistory() {
     ORDER BY created_at DESC
     LIMIT 50
   `;
-  return rows;
-}
-
-export async function getBookingById(bookingId: string) {
-  const sql = getDb();
-  const [booking] = await sql`SELECT * FROM bookings WHERE booking_id = ${bookingId}`;
-  if (!booking) return null;
-  const items = await sql`SELECT * FROM items WHERE booking_id = ${bookingId}`;
-  const findings = await sql`SELECT * FROM findings WHERE booking_id = ${bookingId}`;
-  return { booking, items, findings };
 }

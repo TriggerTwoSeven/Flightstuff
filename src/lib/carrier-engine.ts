@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js';
-import { RATE_CARD, BALANCED_WEIGHTS, type CarrierService } from './constants';
+import { RATE_CARD, BALANCED_WEIGHTS, SELLER_PRIORITIES } from './constants';
 import type { Booking, CarrierCandidate, Recommendation } from './schemas';
 
 export function getCarrierCandidates(booking: Booking): CarrierCandidate[] {
@@ -40,8 +40,9 @@ function minMaxNormalise(values: number[], lowerIsBetter: boolean): number[] {
   const max = Math.max(...values);
   if (min === max) return values.map(() => 0);
   return values.map(v => {
+    // 0 = best, 1 = worst, so every dimension can be summed the same way.
     const norm = (v - min) / (max - min);
-    return lowerIsBetter ? norm : norm;
+    return lowerIsBetter ? norm : 1 - norm;
   });
 }
 
@@ -86,7 +87,7 @@ export function rankCandidates(
         ...c,
         score: BALANCED_WEIGHTS.cost * costN[i] +
           BALANCED_WEIGHTS.transit * transitN[i] +
-          BALANCED_WEIGHTS.reliability * (1 - relN[i]),
+          BALANCED_WEIGHTS.reliability * relN[i],
       }));
 
       return scored.sort((a, b) => {
@@ -99,16 +100,31 @@ export function rankCandidates(
 }
 
 export function getRecommendation(booking: Booking): Recommendation {
-  const priority = booking.sellerPriority || 'Balanced';
+  const priority = (SELLER_PRIORITIES as readonly string[]).includes(booking.sellerPriority) ? booking.sellerPriority : 'Balanced';
   const allCandidates = getCarrierCandidates(booking);
   const ranked = rankCandidates(allCandidates, priority);
+
+  if (allCandidates.length === 0) {
+    return {
+      recommended: null,
+      allCandidates,
+      bestAlternative: null,
+      explanation: booking.destinationCountry
+        ? `No rate card covers ${booking.destinationCountry}. Supported destinations are Germany, France and the Netherlands.`
+        : 'Tell me the destination country and I will rank the carriers for that route.',
+      priority,
+      noEligibleReason: booking.destinationCountry
+        ? `No services run to ${booking.destinationCountry}.`
+        : 'Destination country missing.',
+    };
+  }
 
   if (ranked.length === 0) {
     const wpp = booking.pallets && booking.pallets > 0 && booking.totalGrossWeight
       ? new Decimal(booking.totalGrossWeight).div(new Decimal(booking.pallets)).toDecimalPlaces(2).toNumber()
       : null;
 
-    const maxAvailable = Math.max(...allCandidates.map(c => c.maxKgPerPallet));
+    const maxAvailable = allCandidates.length > 0 ? Math.max(...allCandidates.map(c => c.maxKgPerPallet)) : 0;
 
     return {
       recommended: null,
@@ -139,8 +155,10 @@ export function getRecommendation(booking: Booking): Recommendation {
       explanation = `Chosen because you said Most reliable. ${recommended.onTimePercent}% on-time rate is the highest available${recommended.actualKgPerPallet > 0 ? ` and within the ${recommended.maxKgPerPallet} kg limit at ${recommended.actualKgPerPallet} kg/pallet` : ''}.`;
       break;
     case 'Balanced':
-      explanation = `Chosen using Balanced scoring (40% cost, 30% transit, 30% reliability). ${recommended.carrier} ${recommended.service} scored ${recommended.score?.toFixed(3)} — the best trade-off across all three dimensions.`;
+      explanation = `Chosen using Balanced scoring (40% cost, 30% transit, 30% reliability). ${recommended.carrier} ${recommended.service} scored ${recommended.score?.toFixed(3)}, the best trade-off across all three (lower is better).`;
       break;
+    default:
+      explanation = `No priority was given, so Balanced scoring was used. ${recommended.carrier} ${recommended.service} is the best trade-off across cost, transit and reliability.`;
   }
 
   let alternativeTradeoff: string | undefined;

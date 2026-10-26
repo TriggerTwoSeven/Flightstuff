@@ -87,6 +87,8 @@ export interface BookingReport {
   status: BookingStatus;
   recommendation: Recommendation | null;
   dataIssues: DataIssue[];
+  /** Findings the shipper has confirmed as fine, as "R-06|SKU". Cleared by any edit that changes the facts. */
+  acknowledged?: string[];
 }
 
 export interface DataIssue {
@@ -96,6 +98,7 @@ export interface DataIssue {
   row?: number;
   field?: string;
   value?: string;
+  bookingId?: string;
 }
 
 export type FieldProvenance = 'stated' | 'calculated' | 'auto-generated' | 'confirmed';

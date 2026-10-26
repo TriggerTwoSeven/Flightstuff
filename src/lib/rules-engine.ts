@@ -1,15 +1,21 @@
 import Decimal from 'decimal.js';
-import { type Booking, type Item, type Finding, type FindingStatus, type BookingStatus } from './schemas';
+import type { Booking, Item, Finding, BookingStatus } from './schemas';
+import { todayInLondon } from './normalise';
 import { PROHIBITED_TERMS_TIER1, PROHIBITED_TERMS_TIER2, SAFE_TERMS } from './constants';
 
-function normaliseHsCode(raw: string | number | null | undefined): string {
+/**
+ * Tidy an HS code from a spreadsheet or a chat message.
+ * Accepts the dotted forms customs paperwork uses ("6912.00", "8517.12.00"),
+ * spaces, and numeric cells. Anything with letters is left for R-01 to reject.
+ */
+export function normaliseHsCode(raw: string | number | null | undefined): string {
   if (raw == null || raw === '') return '';
-  let s = String(raw);
-  s = s.replace(/\s+/g, '').replace(/\./g, '');
-  if (/^\d+\.?\d*$/.test(String(raw)) && !s.match(/^0/)) {
-    s = String(Math.floor(Number(raw)));
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? String(Math.trunc(raw)) : '';
   }
-  return s.trim();
+  const s = raw.trim();
+  if (/^[\d\s.\-]+$/.test(s)) return s.replace(/[\s.\-]/g, '');
+  return s.replace(/\s+/g, '');
 }
 
 export function checkR01(booking: Booking, items: Item[]): Finding[] {
@@ -250,15 +256,23 @@ export function checkR05(booking: Booking, _items: Item[], maxKgPerPallet?: numb
   };
 }
 
+function escapeRegex(term: string): string {
+  return term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Look for a prohibited term in free text. Known-safe phrases ("battery-free",
+ * "non-flammable") are removed first, so they only cancel themselves and can no
+ * longer hide a real problem elsewhere in the description. Plurals match too.
+ */
 function matchesProhibited(text: string, terms: string[]): string | null {
-  const lower = text.toLowerCase();
+  let cleaned = text.toLowerCase();
   for (const safe of SAFE_TERMS) {
-    if (lower.includes(safe.toLowerCase())) return null;
+    cleaned = cleaned.split(safe.toLowerCase()).join(' ');
   }
   for (const term of terms) {
-    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-    if (regex.test(text)) return term;
+    const regex = new RegExp(`(?<![a-z0-9])${escapeRegex(term)}(?:s|es)?(?![a-z0-9])`, 'i');
+    if (regex.test(cleaned)) return term;
   }
   return null;
 }
@@ -282,30 +296,19 @@ export function checkR06(booking: Booking, items: Item[]): Finding[] {
       };
     }
 
-    const lower = searchText.toLowerCase();
-    let hasSafeTerm = false;
-    for (const safe of SAFE_TERMS) {
-      if (lower.includes(safe.toLowerCase())) {
-        hasSafeTerm = true;
-        break;
-      }
-    }
-
-    if (!hasSafeTerm) {
-      const tier2Match = matchesProhibited(searchText, PROHIBITED_TERMS_TIER2);
-      if (tier2Match) {
-        return {
-          ruleId: 'R-06',
-          ruleName: 'Prohibited Goods',
-          severity: 'Red',
-          status: 'needs_clarification',
-          affectedBookingId: booking.bookingId,
-          affectedItem: { sku: item.sku, description: item.description },
-          evidence: `"${tier2Match}" found in "${item.description}" (${item.sku}). This term is ambiguous — the item may contain prohibited substances.`,
-          whyItMatters: 'Some products with this description may contain flammable or hazardous materials that are prohibited.',
-          fix: `Confirm whether ${item.sku} (${item.description}) contains lithium batteries, aerosols, or flammable liquids.`,
-        };
-      }
+    const tier2Match = matchesProhibited(searchText, PROHIBITED_TERMS_TIER2);
+    if (tier2Match) {
+      return {
+        ruleId: 'R-06',
+        ruleName: 'Prohibited Goods',
+        severity: 'Red',
+        status: 'needs_clarification',
+        affectedBookingId: booking.bookingId,
+        affectedItem: { sku: item.sku, description: item.description },
+        evidence: `"${tier2Match}" found in "${item.description}" (${item.sku}). This term is ambiguous: the item may contain prohibited substances.`,
+        whyItMatters: 'Some products with this description may contain flammable or hazardous materials that are prohibited.',
+        fix: `Confirm whether ${item.sku} (${item.description}) contains lithium batteries, aerosols, or flammable liquids.`,
+      };
     }
 
     return {
@@ -389,7 +392,7 @@ export function checkR08(booking: Booking): Finding {
     };
   }
 
-  const booked = booking.deliveryAppointmentBooked?.toLowerCase() === 'yes';
+  const booked = /^(yes|y|true|booked|confirmed)$/i.test((booking.deliveryAppointmentBooked ?? '').trim());
 
   return {
     ruleId: 'R-08',
@@ -477,8 +480,7 @@ export function checkR10(booking: Booking): Finding {
     };
   }
 
-  const nowLondon = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
-  const todayLondon = new Date(nowLondon.getFullYear(), nowLondon.getMonth(), nowLondon.getDate());
+  const todayLondon = todayInLondon();
 
   const pass = shipDate >= todayLondon;
 
@@ -522,19 +524,19 @@ export function evaluateAllRules(
   return findings;
 }
 
+export const findingKey = (f: Pick<Finding, 'ruleId' | 'affectedItem'>) => `${f.ruleId}|${f.affectedItem?.sku ?? ''}`;
+
 export function computeBookingStatus(findings: Finding[]): BookingStatus {
   const hasRedFail = findings.some(f => f.severity === 'Red' && f.status === 'fail');
   if (hasRedFail) return 'blocked';
 
-  const hasAmberIssue = findings.some(f =>
-    (f.severity === 'Amber' && f.status === 'fail') ||
-    f.status === 'not_checked' ||
-    f.status === 'needs_clarification'
+  // A person can confirm an ambiguous item or an Amber warning is fine; a Red
+  // failure can never be waved through.
+  const open = findings.filter(f => !f.acknowledged);
+  const hasIssue = open.some(f =>
+    f.status === 'fail' || f.status === 'not_checked' || f.status === 'needs_clarification'
   );
-  if (hasAmberIssue) return 'review';
+  if (hasIssue) return 'review';
 
-  const allEvaluated = findings.every(f => f.status === 'pass');
-  if (allEvaluated) return 'clear';
-
-  return 'review';
+  return findings.every(f => f.status === 'pass' || f.acknowledged) ? 'clear' : 'review';
 }
