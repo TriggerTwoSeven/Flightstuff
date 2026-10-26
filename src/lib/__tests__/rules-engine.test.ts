@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   checkR01, checkR02, checkR03, checkR04, checkR05,
   checkR06, checkR07, checkR08, checkR09, checkR10,
-  evaluateAllRules, computeBookingStatus,
+  computeBookingStatus,
 } from '../rules-engine';
 import type { Booking, Item } from '../schemas';
 
